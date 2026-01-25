@@ -6,7 +6,7 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # max 6 hours
+    timeout-minutes: 360
 
     steps:
       - name: Checkout repo
@@ -18,9 +18,9 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
-      - name: Start WhatsApp Bot (foreground)
+      - name: Start WhatsApp Bot
         run: |
           echo "🤖 Starting WhatsApp bot..."
           node index.js
