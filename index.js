@@ -1,82 +1,54 @@
 import makeWASocket, {
   useMultiFileAuthState,
-  DisconnectReason
-} from '@whiskeysockets/baileys'
-import P from 'pino'
-import fs from 'fs'
-
-const wait = (ms) => new Promise(r => setTimeout(r, ms))
+  fetchLatestBaileysVersion
+} from "@whiskeysockets/baileys"
+import P from "pino"
+import fs from "fs"
 
 async function startBot() {
-  // Ensure auth directory
-  if (!fs.existsSync('./auth')) {
-    fs.mkdirSync('./auth')
+  const authDir = "./auth"
+
+  if (!fs.existsSync(authDir)) {
+    fs.mkdirSync(authDir)
   }
 
-  // Copy creds.json for demo
-  if (fs.existsSync('./creds.json')) {
-    fs.copyFileSync('./creds.json', './auth/creds.json')
-  }
-
-  const { state, saveCreds } = await useMultiFileAuthState('./auth')
+  const { state, saveCreds } = await useMultiFileAuthState(authDir)
+  const { version } = await fetchLatestBaileysVersion()
 
   const sock = makeWASocket({
+    version,
+    logger: P({ level: "silent" }),
     auth: state,
-    logger: P({ level: 'warn' }) // demo-clean logs
+    printQRInTerminal: false, // IMPORTANT
   })
 
-  console.log('🤖 Bot started')
+  // 🔐 PAIRING CODE FLOW
+  if (!state.creds.registered) {
+    console.log("📲 Requesting pairing code...")
+    const code = await sock.requestPairingCode("18764526429") // <-- YOUR NUMBER
+    console.log("🔢 Pairing Code:", code)
+  }
 
-  sock.ev.on('creds.update', saveCreds)
+  sock.ev.on("creds.update", saveCreds)
 
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update
-
-    if (connection === 'open') {
-      console.log('✅ Connected to WhatsApp')
-    }
-
-    if (connection === 'close') {
-      const code = lastDisconnect?.error?.output?.statusCode
-      const loggedOut = code === DisconnectReason.loggedOut
-
-      console.log(`❌ Connection closed (code ${code})`)
-
-      if (!loggedOut) {
-        console.log('🔁 Reconnecting in 5s...')
-        setTimeout(startBot, 5000)
-      }
-    }
-  })
-
-  sock.ev.on('messages.upsert', async ({ messages }) => {
-    const msg = messages?.[0]
-    if (!msg?.message || msg.key.fromMe) return
+  sock.ev.on("messages.upsert", async ({ messages }) => {
+    const msg = messages[0]
+    if (!msg.message || msg.key.fromMe) return
 
     const jid = msg.key.remoteJid
-
     const text =
       msg.message.conversation ||
       msg.message.extendedTextMessage?.text ||
-      msg.message.imageMessage?.caption ||
-      msg.message.videoMessage?.caption ||
       ""
 
-    if (!text) return
-
-    console.log('📩', text)
-
-    const command = text.trim().toLowerCase()
-
-    if (command === '.time' || command.startsWith('.time ')) {
-      const now = new Date().toLocaleTimeString()
+    if (text?.trim().toLowerCase() === ".time") {
       await sock.sendMessage(jid, {
-        text: `🕒 Current time: ${now}`
+        text: `🕒 Time: ${new Date().toLocaleTimeString()}`
       })
-      console.log('✅ Replied with time')
     }
   })
+
+  console.log("🤖 Bot is running")
 }
 
-// IMPORTANT: this line must exist
 startBot()
