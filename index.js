@@ -6,12 +6,12 @@ import P from 'pino'
 import fs from 'fs'
 
 async function startBot() {
-  // Baileys expects auth in a folder
+  // Ensure auth folder exists
   if (!fs.existsSync('./auth')) {
     fs.mkdirSync('./auth')
   }
 
-  // Put creds.json into auth folder
+  // Copy creds.json if present
   if (fs.existsSync('./creds.json')) {
     fs.copyFileSync('./creds.json', './auth/creds.json')
   }
@@ -19,23 +19,37 @@ async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState('./auth')
 
   const sock = makeWASocket({
-    logger: P({ level: 'silent' }),
+    logger: P({ level: 'info' }), // IMPORTANT
     auth: state
   })
 
+  console.log("🤖 Bot started, waiting for messages...")
+
+  // VERY IMPORTANT
   sock.ev.on('creds.update', saveCreds)
 
   sock.ev.on('messages.upsert', async ({ messages }) => {
     const msg = messages[0]
     if (!msg.message || msg.key.fromMe) return
 
+    const jid = msg.key.remoteJid
+
     const text =
       msg.message.conversation ||
-      msg.message.extendedTextMessage?.text
+      msg.message.extendedTextMessage?.text ||
+      msg.message.imageMessage?.caption ||
+      msg.message.videoMessage?.caption ||
+      ""
 
-    if (text === '.time') {
+    console.log("📩 Received:", text)
+
+    if (!text) return
+
+    const command = text.trim().toLowerCase()
+
+    if (command === ".time") {
       const now = new Date().toLocaleTimeString()
-      await sock.sendMessage(msg.key.remoteJid, {
+      await sock.sendMessage(jid, {
         text: `🕒 Current time: ${now}`
       })
     }
