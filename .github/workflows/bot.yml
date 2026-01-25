@@ -1,10 +1,10 @@
-name: WhatsApp Bot (Test Runner)
+name: WhatsApp Bot Demo
 
 on:
   workflow_dispatch:
 
 jobs:
-  run-bot:
+  demo:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
@@ -12,7 +12,7 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Start WhatsApp Bot
+      - name: Start bot
         run: |
-          echo "🤖 Starting WhatsApp bot..."
+          echo "🤖 Starting WhatsApp bot demo..."
           node index.js
