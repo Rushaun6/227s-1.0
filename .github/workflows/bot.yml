@@ -1,13 +1,12 @@
-name: WhatsApp Bot
+name: WhatsApp Bot (Test Runner)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours max
 
     steps:
       - name: Checkout repo
@@ -21,5 +20,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run bot
-        run: npm start
+      - name: Start WhatsApp Bot
+        run: |
+          echo "🤖 Starting WhatsApp bot..."
+          node index.js &
+          echo "⏳ Keeping runner alive..."
+          sleep 21600
