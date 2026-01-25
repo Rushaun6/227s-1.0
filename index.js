@@ -8,10 +8,12 @@ import fs from 'fs'
 const wait = (ms) => new Promise(r => setTimeout(r, ms))
 
 async function startBot() {
-  // Ensure auth dir
-  if (!fs.existsSync('./auth')) fs.mkdirSync('./auth')
+  // Ensure auth directory
+  if (!fs.existsSync('./auth')) {
+    fs.mkdirSync('./auth')
+  }
 
-  // Copy creds once for demo
+  // Copy creds.json for demo
   if (fs.existsSync('./creds.json')) {
     fs.copyFileSync('./creds.json', './auth/creds.json')
   }
@@ -20,10 +22,11 @@ async function startBot() {
 
   const sock = makeWASocket({
     auth: state,
-    logger: P({ level: 'warn' }) // DEMO: clean logs
+    logger: P({ level: 'warn' }) // demo-clean logs
   })
 
   console.log('🤖 Bot started')
+
   sock.ev.on('creds.update', saveCreds)
 
   sock.ev.on('connection.update', (update) => {
@@ -67,4 +70,13 @@ async function startBot() {
 
     if (command === '.time' || command.startsWith('.time ')) {
       const now = new Date().toLocaleTimeString()
-      await
+      await sock.sendMessage(jid, {
+        text: `🕒 Current time: ${now}`
+      })
+      console.log('✅ Replied with time')
+    }
+  })
+}
+
+// IMPORTANT: this line must exist
+startBot()
