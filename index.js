@@ -1,54 +1,19 @@
-import makeWASocket, {
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion
-} from "@whiskeysockets/baileys"
-import P from "pino"
-import fs from "fs"
+import TelegramBot from "node-telegram-bot-api"
 
-async function startBot() {
-  const authDir = "./auth"
+const token = "8212205147:AAETVoiQza7rhwqCQIV53aeIeGj7QKv_xDw"
 
-  if (!fs.existsSync(authDir)) {
-    fs.mkdirSync(authDir)
+const bot = new TelegramBot(token, { polling: true })
+
+bot.on("message", (msg) => {
+  const chatId = msg.chat.id
+  const text = msg.text
+
+  if (text === ".time") {
+    bot.sendMessage(
+      chatId,
+      `🕒 Time: ${new Date().toLocaleTimeString()}`
+    )
   }
+})
 
-  const { state, saveCreds } = await useMultiFileAuthState(authDir)
-  const { version } = await fetchLatestBaileysVersion()
-
-  const sock = makeWASocket({
-    version,
-    logger: P({ level: "silent" }),
-    auth: state,
-    printQRInTerminal: false, // IMPORTANT
-  })
-
-  // 🔐 PAIRING CODE FLOW
-  if (!state.creds.registered) {
-    console.log("📲 Requesting pairing code...")
-    const code = await sock.requestPairingCode("18764526429") // <-- YOUR NUMBER
-    console.log("🔢 Pairing Code:", code)
-  }
-
-  sock.ev.on("creds.update", saveCreds)
-
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    const msg = messages[0]
-    if (!msg.message || msg.key.fromMe) return
-
-    const jid = msg.key.remoteJid
-    const text =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text ||
-      ""
-
-    if (text?.trim().toLowerCase() === ".time") {
-      await sock.sendMessage(jid, {
-        text: `🕒 Time: ${new Date().toLocaleTimeString()}`
-      })
-    }
-  })
-
-  console.log("🤖 Bot is running")
-}
-
-startBot()
+console.log("🤖 Telegram bot started")
