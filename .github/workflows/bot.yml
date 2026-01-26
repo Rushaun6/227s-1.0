@@ -1,9 +1,12 @@
 name: Telegram Economy Bot
 
+permissions:
+  contents: write   # 🔥 THIS IS THE FIX
+
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * *"   # every hour
+    - cron: "0 * * * *"
 
 jobs:
   run-bot:
@@ -23,14 +26,15 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Start bot (55 minutes)
+      - name: Run bot (55 min)
         run: |
-          echo "🤖 Starting bot..."
+          echo "🤖 Bot running..."
           timeout 55m node index.js || true
 
-      - name: Commit database
+      - name: Save database
         run: |
-          git config user.name "bot"
+          echo "💾 Saving database"
+          git config user.name "economy-bot"
           git config user.email "bot@github.com"
           git add database.json
           git commit -m "💾 Save economy data" || echo "No changes"
