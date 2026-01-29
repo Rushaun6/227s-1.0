@@ -1,82 +1,132 @@
-import fs from "fs"
 import TelegramBot from "node-telegram-bot-api"
+import fetch from "node-fetch"
 
-const token = "8212205147:AAETVoiQza7rhwqCQIV53aeIeGj7QKv_xDw"
-const bot = new TelegramBot(token, { polling: true })
+// ====== TELEGRAM ======
+const BOT_TOKEN = "8212205147:AAETVoiQza7rhwqCQIV53aeIeGj7QKv_xDw"
+const bot = new TelegramBot(BOT_TOKEN, { polling: true })
 
-const DB_FILE = "./database.json"
+// ====== SUPABASE ======
+const SUPABASE_URL = "https://ktxijelzutqgmegvuayz.supabase.co"
+const SUPABASE_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0eGlqZWx6dXRxZ21lZ3Z1YXl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MzAyMjksImV4cCI6MjA4NTIwNjIyOX0.zbsMK9bukjn20LEt3VDd7TydZoxyBhRwyJeYQ84D0Wk"
+
+const HEADERS = {
+  apikey: SUPABASE_KEY,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+  "Content-Type": "application/json",
+  Prefer: "return=representation"
+}
+
+// ====== DATA ======
 
 const CAREERS = {
-  cleaner: { name: "Street Cleaner", min: 50, max: 100, cd: 1800 },
-  delivery: { name: "Delivery Driver", min: 80, max: 150, cd: 1800 },
-  fastfood: { name: "Fast Food Worker", min: 70, max: 140, cd: 1800 },
-  clerk: { name: "Office Clerk", min: 120, max: 200, cd: 2700 },
-  mechanic: { name: "Mechanic", min: 150, max: 260, cd: 2700 },
-  freelancer: { name: "Freelancer", min: 100, max: 350, cd: 3600 },
-  dev: { name: "Software Developer", min: 200, max: 400, cd: 3600 },
-  influencer: { name: "Influencer", min: 0, max: 600, cd: 3600 },
-  trader: { name: "Stock Trader", min: 100, max: 800, cd: 7200 },
-  syndicate: { name: "Crime Syndicate Member", min: 300, max: 700, cd: 7200 }
+  cleaner: [50, 100],
+  delivery: [80, 150],
+  fastfood: [70, 140],
+  clerk: [120, 200],
+  mechanic: [150, 260],
+  freelancer: [100, 350],
+  developer: [200, 400],
+  influencer: [0, 600],
+  trader: [100, 800],
+  syndicate: [300, 700]
 }
 
 const CRIMES = {
-  pickpocket: { min: 50, max: 120, fail: 0.2 },
-  shoplift: { min: 40, max: 150, fail: 0.25 },
-  scam: { min: 100, max: 300, fail: 0.3 },
-  car: { min: 200, max: 500, fail: 0.35 },
-  burglary: { min: 250, max: 600, fail: 0.4 },
-  fraud: { min: 400, max: 900, fail: 0.45 },
-  cyber: { min: 300, max: 800, fail: 0.35 },
-  drugs: { min: 500, max: 1200, fail: 0.5 },
-  robbery: { min: 800, max: 2000, fail: 0.6 },
-  heist: { min: 1500, max: 4000, fail: 0.7 }
+  pickpocket: [50, 120, 0.2],
+  shoplift: [40, 150, 0.25],
+  scam: [100, 300, 0.3],
+  car: [200, 500, 0.35],
+  burglary: [250, 600, 0.4],
+  fraud: [400, 900, 0.45],
+  cyber: [300, 800, 0.35],
+  drugs: [500, 1200, 0.5],
+  robbery: [800, 2000, 0.6],
+  heist: [1500, 4000, 0.7]
 }
 
-function loadDB() {
-  if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify({ users: {} }, null, 2))
-  }
-  return JSON.parse(fs.readFileSync(DB_FILE))
+// ====== SUPABASE HELPERS ======
+
+async function getUser(userId) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}`,
+    { headers: HEADERS }
+  )
+  const data = await res.json()
+  return data[0] || null
 }
 
-function saveDB(db) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2))
+async function createUser(userId) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+    method: "POST",
+    headers: HEADERS,
+    body: JSON.stringify({
+      user_id: userId,
+      wallet: 500,
+      bank: 0,
+      career: null
+    })
+  })
+  const data = await res.json()
+  return data[0]
 }
 
-function now() {
-  return Math.floor(Date.now() / 1000)
+async function updateUser(userId, patch) {
+  await fetch(`${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}`, {
+    method: "PATCH",
+    headers: HEADERS,
+    body: JSON.stringify(patch)
+  })
 }
 
-bot.on("message", (msg) => {
+// ====== BOT ======
+
+bot.on("message", async (msg) => {
   if (!msg.text) return
 
   const chatId = msg.chat.id
   const userId = msg.from.id.toString()
-  const text = msg.text.toLowerCase().trim()
+  const text = msg.text.trim().toLowerCase()
 
-  const db = loadDB()
-  if (!db.users[userId]) {
-    db.users[userId] = {
-      wallet: 500,
-      bank: 0,
-      career: null,
-      cooldowns: {}
-    }
+  let user = await getUser(userId)
+  if (!user) user = await createUser(userId)
+
+  // ===== MENU =====
+  if (text === ".menu") {
+    return bot.sendMessage(
+      chatId,
+      `📜 *MAIN MENU*
+
+💰 Economy
+• .balance
+• .careers
+• .career <name>
+• .work
+
+🕵️ Crime
+• .crimes
+• .crime <type>
+
+ℹ️ Info
+• .menu`,
+      { parse_mode: "Markdown" }
+    )
   }
 
-  const user = db.users[userId]
-
-  // BALANCE
+  // ===== BALANCE =====
   if (text === ".balance") {
-    return bot.sendMessage(chatId, `💼 $${user.wallet} | 🏦 $${user.bank}`)
+    return bot.sendMessage(
+      chatId,
+      `💼 Wallet: $${user.wallet}\n🏦 Bank: $${user.bank}`
+    )
   }
 
-  // CAREERS
+  // ===== CAREERS =====
   if (text === ".careers") {
     return bot.sendMessage(
       chatId,
-      Object.entries(CAREERS)
-        .map(([k, v]) => `${v.name} → .career ${k}`)
+      Object.keys(CAREERS)
+        .map((c) => `• ${c}`)
         .join("\n")
     )
   }
@@ -84,62 +134,46 @@ bot.on("message", (msg) => {
   if (text.startsWith(".career ")) {
     const c = text.split(" ")[1]
     if (!CAREERS[c]) return bot.sendMessage(chatId, "❌ Invalid career.")
-    user.career = c
-    saveDB(db)
-    return bot.sendMessage(chatId, `✅ Career set to ${CAREERS[c].name}`)
+    await updateUser(userId, { career: c })
+    return bot.sendMessage(chatId, `✅ Career set to ${c}`)
   }
 
-  // WORK
+  // ===== WORK =====
   if (text === ".work") {
-    if (!user.career) return bot.sendMessage(chatId, "❌ Choose a career first.")
-    const job = CAREERS[user.career]
-    if (now() - (user.cooldowns.work || 0) < job.cd)
-      return bot.sendMessage(chatId, "⏳ On cooldown.")
+    if (!user.career)
+      return bot.sendMessage(chatId, "❌ Choose a career first.")
 
-    const pay = Math.floor(Math.random() * (job.max - job.min + 1)) + job.min
-    user.wallet += pay
-    user.cooldowns.work = now()
-    saveDB(db)
-    return bot.sendMessage(chatId, `💼 Earned $${pay}`)
+    const [min, max] = CAREERS[user.career]
+    const pay = Math.floor(Math.random() * (max - min + 1)) + min
+    await updateUser(userId, { wallet: user.wallet + pay })
+    return bot.sendMessage(chatId, `💼 You earned $${pay}`)
   }
 
-  // CRIME LIST
+  // ===== CRIMES =====
   if (text === ".crimes") {
     return bot.sendMessage(
       chatId,
       Object.keys(CRIMES)
-        .map((c) => `• ${c} → .crime ${c}`)
+        .map((c) => `• ${c}`)
         .join("\n")
     )
   }
 
-  // CRIME
   if (text.startsWith(".crime ")) {
-    const crime = text.split(" ")[1]
-    if (!CRIMES[crime]) return bot.sendMessage(chatId, "❌ Invalid crime.")
+    const c = text.split(" ")[1]
+    if (!CRIMES[c]) return bot.sendMessage(chatId, "❌ Invalid crime.")
 
-    if (now() - (user.cooldowns.crime || 0) < 1800)
-      return bot.sendMessage(chatId, "🚔 You're laying low. Try later.")
-
-    const roll = Math.random()
-    if (roll < CRIMES[crime].fail) {
-      const fine = Math.min(user.wallet, 200)
-      user.wallet -= fine
-      user.cooldowns.crime = now()
-      saveDB(db)
-      return bot.sendMessage(chatId, `🚨 Caught! You paid $${fine}`)
+    const [min, max, fail] = CRIMES[c]
+    if (Math.random() < fail) {
+      const fine = Math.min(200, user.wallet)
+      await updateUser(userId, { wallet: user.wallet - fine })
+      return bot.sendMessage(chatId, `🚨 Caught! You lost $${fine}`)
     }
 
-    const loot =
-      Math.floor(Math.random() * (CRIMES[crime].max - CRIMES[crime].min + 1)) +
-      CRIMES[crime].min
-
-    user.wallet += loot
-    user.cooldowns.crime = now()
-    saveDB(db)
-
-    return bot.sendMessage(chatId, `🕵️ Crime successful! You got $${loot}`)
+    const loot = Math.floor(Math.random() * (max - min + 1)) + min
+    await updateUser(userId, { wallet: user.wallet + loot })
+    return bot.sendMessage(chatId, `🕵️ Crime successful! +$${loot}`)
   }
 })
 
-console.log("🤖 Bot running with Crime System")
+console.log("🤖 Telegram economy bot fully online (Supabase)")
